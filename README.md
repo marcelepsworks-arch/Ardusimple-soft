@@ -1,12 +1,12 @@
-# ArduSimple GNSS RTK Desktop App
+# ArduSimple GNSS RTK Universal App
 
-A cross-platform desktop GNSS/RTK surveying application built specifically for the ArduSimple ecosystem. Inspired by industry-standard surveying tools, this open-source application brings professional-grade RTK capabilities to your desktop (Windows, macOS, Linux).
+A cross-platform GNSS/RTK surveying application built for the ArduSimple ecosystem. Leveraging **Tauri 2**, this unified codebase runs natively on **Android, iOS, Windows, macOS, and Linux**.
 
 ## Overview
 
-While excellent mobile solutions exist, desktop users using rugged field laptops or Windows tablets often lack a comprehensive, free, and open-source GNSS data collection tool tailored for ArduSimple receivers (such as the simpleRTK2B/ZED-F9P).
+While professional mobile apps like Emlid Flow exist, they are often locked to specific hardware. This application provides a free, open-source alternative for ArduSimple users (ZED-F9P/simpleRTK2B) that works seamlessly across all devices—from a field Android smartphone to a rugged Windows tablet or an office MacBook.
 
-This application bridges that gap, offering direct serial/USB and Bluetooth connections, a built-in NTRIP client, an interactive mapping interface, and powerful surveying features like staking out points, data collection, and project management—all running natively on your desktop.
+This application bridges the gap between field and office, offering direct serial/USB and Bluetooth connections, a built-in NTRIP client, an interactive mapping interface, and powerful surveying features like staking out points, data collection, and project management—all from a single, high-performance codebase.
 
 ## ✨ Key Features
 

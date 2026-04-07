@@ -80,16 +80,15 @@
 | Export DXF | ⚠️ Mitjana | `dxf-writer` (npm) — bàsic però funcional |
 | Expo compatibilitat | ❌ No | Cal ejectar (Bare workflow) per Bluetooth/USB serial |
 
-#### Decisió Crítica: React Native vs Flutter
-| Criteri | React Native | Flutter |
+#### Decisió Crítica: Tauri 2 (Unified) vs React Native
+| Criteri | Tauri 2 (Triat) | React Native |
 |---------|-------------|---------|
-| Bluetooth/USB | Moderat (libs menys madures) | Millor (`flutter_blue_plus`, `usb_serial`) |
+| Multi-plataforma | Android, iOS, Win, Mac, Linux ✅ | Només Mòbil (Android/iOS) ❌ |
+| Codi base | Un sol codi per a TOTS els dispositius ✅ | Codi separat per a l'escriptori ❌ |
+| Rendiment Serial/BT | Natiu en Rust (ultra-ràpid) ✅ | Dependència de bridges JS ❌ |
 | Mapes | MapLibre GL ✅ | MapLibre GL ✅ |
-| Ecosistema web | Comparteix codi amb web ✅ | Dart aïllat ❌ |
-| Talent disponible | Més abundant | Menys, però creixent |
-| Rendiment serial | Requereix native modules | Millor integració nativa |
 
-**RECOMANACIÓ:** Mantenir **React Native** pel document original, però amb **Bare workflow** (no Expo). Si l'equip té experiència Flutter, considerar-ho seriosament per la millor integració hardware.
+**ESTRATÈGIA DEFINITIVA:** Utilitzar **Tauri 2** com a core. Això ens permet mantenir una única aplicació en React que es compila per a mòbil (camp) i escriptori (oficina).
 
 ---
 
@@ -99,39 +98,21 @@
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    CLIENTS                           │
+│                    UNIFIED APP (Tauri 2)             │
 │  ┌──────────────┐  ┌──────────────┐                 │
-│  │ Mobile App   │  │ Web App      │                 │
-│  │ React Native │  │ React SPA    │                 │
-│  │ (Android/iOS)│  │ (Post-proc)  │                 │
+│  │ Mobile App   │  │ Desktop App  │                 │
+│  │ (Android/iOS)│  │ (Windows/Mac)│                 │
 │  └──────┬───────┘  └──────┬───────┘                 │
 │         │                  │                         │
-│         │  HTTPS/WSS       │  HTTPS                  │
-│         ▼                  ▼                         │
+│         └────────┬─────────┘                         │
+│                  ▼                                   │
 │  ┌─────────────────────────────────┐                │
-│  │         API GATEWAY             │                │
-│  │    Node.js + Express            │                │
+│  │         CORE BACKEND (Rust)     │                │
+│  │    Tauri Runtime / Serial / BT  │                │
 │  │  ┌───────┐ ┌────────┐ ┌─────┐  │                │
-│  │  │ Auth  │ │Projects│ │NTRIP│  │                │
-│  │  │ JWT   │ │ CRUD   │ │Proxy│  │                │
+│  │  │ NMEA  │ │ NTRIP  │ │ SQL │  │                │
+│  │  │ Parser│ │ Client │ │ DB  │  │                │
 │  │  └───────┘ └────────┘ └─────┘  │                │
-│  └──────────────┬──────────────────┘                │
-│                 │                                    │
-│    ┌────────────┼────────────┐                      │
-│    ▼            ▼            ▼                      │
-│ ┌──────┐  ┌─────────┐  ┌──────────┐                │
-│ │Postgr│  │ Redis   │  │ MinIO/S3 │                │
-│ │  SQL  │  │ (cache, │  │ (RINEX,  │                │
-│ │      │  │  queue) │  │  exports)│                │
-│ └──────┘  └─────────┘  └──────────┘                │
-│                                                      │
-│  ┌─────────────────────────────────┐                │
-│  │    POST-PROCESSING ENGINE       │                │
-│  │    Python + RTKLIB CLI          │                │
-│  │  ┌────────┐ ┌──────┐ ┌──────┐  │                │
-│  │  │ PPK    │ │ PPP  │ │ QC   │  │                │
-│  │  │Engine │ │Engine│ │Report│  │                │
-│  │  └────────┘ └──────┘ └──────┘  │                │
 │  └─────────────────────────────────┘                │
 └─────────────────────────────────────────────────────┘
 ```

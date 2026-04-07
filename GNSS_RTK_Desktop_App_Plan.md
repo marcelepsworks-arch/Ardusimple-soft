@@ -1,9 +1,9 @@
-# GNSS RTK Desktop App — Complete Build Plan for AI Dev Agent
+# GNSS RTK Universal App — Complete Build Plan
 
-> **Project:** Cross-platform desktop GNSS/RTK surveying application inspired by Emlid Flow
-> **Target platforms:** Windows 10+, macOS 12+, Linux (Ubuntu 20.04+)
+> **Project:** Cross-platform GNSS/RTK surveying application using Tauri 2 (Unified Codebase)
+> **Target platforms:** Windows 10+, macOS 12+, Linux, Android 10+, iOS 15+
 > **Author context:** ArduSimple RTK hardware user
-> **Goal:** Recreate all core Emlid Flow features plus desktop-first enhancements in a free, open-source desktop application
+> **Goal:** Recreate all core Emlid Flow features in a free, open-source application that runs on both Mobile and Desktop.
 
 ---
 
@@ -54,11 +54,10 @@ Emlid Flow is a mobile (iOS/Android) GNSS survey application for the Emlid Reach
 - CSV, DXF, KML, Shapefile import/export
 - Cloud sync via Emlid Flow 360
 
-### Why a Desktop Version?
-- ArduSimple receivers are used in fieldwork from a rugged laptop or connected to a tablet running Windows
-- Desktop offers: larger screen, keyboard/mouse precision, direct USB/serial port access, no Android/iOS restrictions
-- No existing free cross-platform desktop app combines all these features in one tool
-- The application will be free and open-source, unlike Emlid Flow's paid Survey tier ($240/year)
+### Why a Universal Version?
+- ArduSimple receivers are used in fieldwork via smartphones (Android/iOS) for portability or rugged laptops/tablets for office planning.
+- **Unified Strategy:** Using **Tauri 2**, we maintain ONE codebase. Desktop offers larger screens for CAD/GIS work; Mobile offers portability and field-ready GPS integration.
+- This application will be free and open-source, providing a true cross-platform alternative to closed-ecosystem tools.
 
 ### ArduSimple Ecosystem Context
 ArduSimple produces multiband RTK GNSS receivers (simpleRTK2B, simpleRTK3B, etc.) that output standard NMEA 0183 sentences and accept RTCM corrections. They are broadly compatible with:
@@ -76,7 +75,7 @@ This desktop app targets the **Survey & Mapping** and **3D Mapping** categories 
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| App framework | **Tauri 2** (Rust + WebView) | Lightweight, native hardware access, cross-platform, ~5MB binary |
+| App framework | **Tauri 2** (Rust + WebView) | Unified codebase for Desktop & Mobile, native hardware access |
 | Frontend | **React 18 + TypeScript** | Mature ecosystem, great GIS tooling |
 | Styling | **Tailwind CSS** | Utility-first, consistent design |
 | Map rendering | **MapLibre GL JS** | WebGL vector maps, open-source, no API key needed |
