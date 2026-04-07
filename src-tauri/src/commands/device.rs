@@ -1,8 +1,9 @@
 use crate::parser::nmea::{self, LiveFix};
 use serde::Serialize;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
 /// Known USB VID/PID for ArduSimple / GNSS devices
@@ -24,10 +25,13 @@ pub struct PortInfo {
     pub chipset: String,
 }
 
-/// State managed by Tauri for the serial connection
+/// State managed by Tauri for the serial connection.
+/// The `serial_writer` is shared so the NTRIP module can write RTCM data to the port.
 pub struct SerialState {
     pub stop_flag: Arc<AtomicBool>,
     pub is_connected: Arc<AtomicBool>,
+    pub serial_writer: Arc<Mutex<Option<Box<dyn Write + Send>>>>,
+    pub live_fix: Arc<Mutex<LiveFix>>,
 }
 
 impl Default for SerialState {
@@ -35,6 +39,8 @@ impl Default for SerialState {
         Self {
             stop_flag: Arc::new(AtomicBool::new(false)),
             is_connected: Arc::new(AtomicBool::new(false)),
+            serial_writer: Arc::new(Mutex::new(None)),
+            live_fix: Arc::new(Mutex::new(LiveFix::default())),
         }
     }
 }
@@ -101,11 +107,26 @@ pub async fn connect_serial(
         .open()
         .map_err(|e| format!("Failed to open {}: {}", port, e))?;
 
+    // Clone the port for writing (RTCM relay)
+    let writer = serial
+        .try_clone()
+        .map_err(|e| format!("Failed to clone serial port: {}", e))?;
+
+    {
+        let mut w = state.serial_writer.lock().unwrap();
+        *w = Some(Box::new(writer));
+    }
+
     state.is_connected.store(true, Ordering::SeqCst);
-    let _ = app.emit("connection_state", serde_json::json!({"state": "connected"}));
+    let _ = app.emit(
+        "connection_state",
+        serde_json::json!({"state": "connected"}),
+    );
 
     let stop = state.stop_flag.clone();
     let connected = state.is_connected.clone();
+    let serial_writer = state.serial_writer.clone();
+    let live_fix_shared = state.live_fix.clone();
 
     // Spawn reader thread
     std::thread::spawn(move || {
@@ -120,11 +141,15 @@ pub async fn connect_serial(
 
             line.clear();
             match reader.read_line(&mut line) {
-                Ok(0) => break, // EOF
+                Ok(0) => break,
                 Ok(_) => {
                     let trimmed = line.trim();
                     if trimmed.starts_with('$') {
                         if nmea::parse_sentence(trimmed, &mut fix) {
+                            // Update shared live fix (for NTRIP GGA generation)
+                            if let Ok(mut shared) = live_fix_shared.lock() {
+                                *shared = fix.clone();
+                            }
                             let _ = app.emit("fix_update", &fix);
                         }
                     }
@@ -137,6 +162,10 @@ pub async fn connect_serial(
         }
 
         connected.store(false, Ordering::SeqCst);
+        // Clear writer
+        if let Ok(mut w) = serial_writer.lock() {
+            *w = None;
+        }
         let _ = app.emit(
             "connection_state",
             serde_json::json!({"state": "disconnected"}),
@@ -149,5 +178,9 @@ pub async fn connect_serial(
 #[tauri::command]
 pub async fn disconnect(state: tauri::State<'_, SerialState>) -> Result<(), String> {
     state.stop_flag.store(true, Ordering::SeqCst);
+    // Clear writer
+    if let Ok(mut w) = state.serial_writer.lock() {
+        *w = None;
+    }
     Ok(())
 }
