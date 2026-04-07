@@ -27,6 +27,8 @@ pub fn run() {
             commands::ntrip::ntrip_connect,
             commands::ntrip::ntrip_disconnect,
             commands::ntrip::ntrip_fetch_sourcetable,
+            commands::license::check_license,
+            commands::license::activate_license,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

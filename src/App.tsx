@@ -3,6 +3,7 @@ import { MapView } from "./components/map/MapView";
 import { StatusBar } from "./components/device/StatusBar";
 import { DevicePanel } from "./components/device/DevicePanel";
 import { NtripPanel } from "./components/ntrip/NtripPanel";
+import { LicenseGate } from "./components/shared/LicenseGate";
 import { startFixListener, startConnectionListener } from "./lib/nmea-listener";
 import {
   Map,
@@ -35,7 +36,8 @@ export default function App() {
   ];
 
   return (
-    <div className="flex h-full bg-gray-900 text-gray-100">
+    <LicenseGate>
+    <div className="flex flex-1 bg-gray-900 text-gray-100">
       {/* Left nav bar */}
       <nav className="flex flex-col w-14 bg-gray-950 border-r border-gray-800">
         {navItems.map((item) => (
@@ -76,5 +78,6 @@ export default function App() {
         <StatusBar />
       </div>
     </div>
+    </LicenseGate>
   );
 }

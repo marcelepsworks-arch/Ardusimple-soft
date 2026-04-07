@@ -27,3 +27,4 @@ reqwest = { version = "0.12", features = ["stream"] }
 base64 = "0.22"
 tokio-util = { version = "0.7", features = ["io"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
+hex = "0.4"
