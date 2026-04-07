@@ -25,10 +25,10 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
+    <div className="flex flex-col h-full">
       {status && status.is_trial && <TrialBanner daysLeft={status.trial_days_remaining} />}
       {children}
-    </>
+    </div>
   );
 }
 
