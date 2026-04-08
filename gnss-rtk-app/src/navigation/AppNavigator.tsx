@@ -9,6 +9,7 @@ import {SettingsScreen} from '../screens/SettingsScreen';
 import {ExportScreen} from '../screens/ExportScreen';
 import {StakeoutScreen} from '../screens/StakeoutScreen';
 import {CogoScreen} from '../screens/CogoScreen';
+import {DtmScreen} from '../screens/DtmScreen';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const Tab = createBottomTabNavigator();
@@ -73,6 +74,16 @@ export function AppNavigator() {
           title: 'Projects',
           tabBarIcon: ({color, size}) => (
             <Icon name="folder" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="DTM"
+        component={DtmScreen}
+        options={{
+          title: 'DTM',
+          tabBarIcon: ({color, size}) => (
+            <Icon name="terrain" color={color} size={size} />
           ),
         }}
       />
