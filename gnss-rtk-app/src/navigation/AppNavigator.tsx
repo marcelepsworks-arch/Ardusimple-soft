@@ -6,6 +6,8 @@ import {NtripScreen} from '../screens/NtripScreen';
 import {CollectScreen} from '../screens/CollectScreen';
 import {ProjectsScreen} from '../screens/ProjectsScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
+import {ExportScreen} from '../screens/ExportScreen';
+import {StakeoutScreen} from '../screens/StakeoutScreen';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const Tab = createBottomTabNavigator();
@@ -70,6 +72,26 @@ export function AppNavigator() {
           title: 'Projects',
           tabBarIcon: ({color, size}) => (
             <Icon name="folder" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Stakeout"
+        component={StakeoutScreen}
+        options={{
+          title: 'Stakeout',
+          tabBarIcon: ({color, size}) => (
+            <Icon name="target" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Export"
+        component={ExportScreen}
+        options={{
+          title: 'Export',
+          tabBarIcon: ({color, size}) => (
+            <Icon name="export-variant" color={color} size={size} />
           ),
         }}
       />
