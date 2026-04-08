@@ -8,6 +8,7 @@ import {ProjectsScreen} from '../screens/ProjectsScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {ExportScreen} from '../screens/ExportScreen';
 import {StakeoutScreen} from '../screens/StakeoutScreen';
+import {CogoScreen} from '../screens/CogoScreen';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const Tab = createBottomTabNavigator();
@@ -72,6 +73,16 @@ export function AppNavigator() {
           title: 'Projects',
           tabBarIcon: ({color, size}) => (
             <Icon name="folder" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="COGO"
+        component={CogoScreen}
+        options={{
+          title: 'COGO',
+          tabBarIcon: ({color, size}) => (
+            <Icon name="vector-triangle" color={color} size={size} />
           ),
         }}
       />
