@@ -1,7 +1,10 @@
 import React from 'react';
-import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, Linking, Alert} from 'react-native';
 import {useLicenseStore} from '../store/useLicenseStore';
 import {signOut} from '../services/auth-service';
+
+// Web portal URL — update after deploying to Vercel
+const PORTAL_URL = 'https://auth.ardusimple-rtk.com/pricing';
 
 export function LicenseExpiredScreen() {
   const profile = useLicenseStore(s => s.profile);
@@ -12,22 +15,33 @@ export function LicenseExpiredScreen() {
     setIsLoggedIn(false);
   }
 
+  async function handleSubscribe() {
+    const supported = await Linking.canOpenURL(PORTAL_URL);
+    if (supported) {
+      await Linking.openURL(PORTAL_URL);
+    } else {
+      Alert.alert('Cannot open URL', `Please visit: ${PORTAL_URL}`);
+    }
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>⚠️</Text>
+      <Text style={styles.icon}>🔒</Text>
       <Text style={styles.title}>Trial Expired</Text>
       <Text style={styles.subtitle}>
         Your 10-day free trial has ended. Subscribe to continue using GNSS RTK
-        App.
+        Survey — from €6.58/month.
       </Text>
 
       {profile && (
         <Text style={styles.email}>Signed in as {profile.email}</Text>
       )}
 
-      <TouchableOpacity style={styles.upgradeBtn}>
-        <Text style={styles.upgradeBtnText}>Subscribe Now</Text>
+      <TouchableOpacity style={styles.upgradeBtn} onPress={handleSubscribe}>
+        <Text style={styles.upgradeBtnText}>Subscribe Now →</Text>
       </TouchableOpacity>
+
+      <Text style={styles.portalHint}>Opens {PORTAL_URL}</Text>
 
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
@@ -62,6 +76,11 @@ const styles = StyleSheet.create({
   email: {
     color: '#6b7280',
     fontSize: 13,
+  },
+  portalHint: {
+    color: '#374151',
+    fontSize: 11,
+    marginTop: -8,
   },
   upgradeBtn: {
     width: '100%',

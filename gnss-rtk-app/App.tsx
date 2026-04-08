@@ -2,10 +2,12 @@ import React, {useEffect, useState} from 'react';
 import {StatusBar, View, Text, ActivityIndicator, StyleSheet} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {LoginScreen} from './src/screens/LoginScreen';
 import {RegisterScreen} from './src/screens/RegisterScreen';
 import {LicenseExpiredScreen} from './src/screens/LicenseExpiredScreen';
+import {OnboardingScreen} from './src/screens/OnboardingScreen';
 import {useLicenseStore} from './src/store/useLicenseStore';
 import {checkAuthAndLicense} from './src/services/auth-service';
 import {registerAllCS} from './src/lib/coordinate-systems';
@@ -13,12 +15,16 @@ import {registerAllCS} from './src/lib/coordinate-systems';
 // Register all coordinate system definitions at startup
 registerAllCS();
 
+const ONBOARDING_KEY = '@ardusimple_onboarding_done';
+
 type AuthScreen = 'login' | 'register';
 
 function App() {
   const {status, isLoggedIn, loading, setStatus, setProfile, setIsLoggedIn, setLoading} =
     useLicenseStore();
   const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   async function loadAuth() {
     setLoading(true);
@@ -34,14 +40,34 @@ function App() {
 
   useEffect(() => {
     loadAuth();
+    // Check if onboarding has been seen
+    AsyncStorage.getItem(ONBOARDING_KEY).then(val => {
+      setShowOnboarding(val === null);
+      setOnboardingChecked(true);
+    });
   }, []);
 
-  if (loading) {
+  async function completeOnboarding() {
+    await AsyncStorage.setItem(ONBOARDING_KEY, 'done');
+    setShowOnboarding(false);
+  }
+
+  if (loading || !onboardingChecked) {
     return (
       <View style={styles.loading}>
         <StatusBar barStyle="light-content" backgroundColor="#111827" />
         <ActivityIndicator color="#3b82f6" size="large" />
       </View>
+    );
+  }
+
+  // Show onboarding on first launch
+  if (showOnboarding) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+        <OnboardingScreen onComplete={completeOnboarding} />
+      </SafeAreaProvider>
     );
   }
 
@@ -99,16 +125,18 @@ function App() {
         }}>
         {/* Trial banner */}
         {status?.isTrial && !status.trialExpired && (
-          <View
+          <Text
+            onPress={() => {
+              const {Linking} = require('react-native');
+              Linking.openURL('https://auth.ardusimple-rtk.com/pricing');
+            }}
             style={[
               styles.trialBanner,
               status.trialDaysRemaining <= 3 && styles.trialBannerUrgent,
             ]}>
-            <Text style={styles.trialText}>
-              Trial: {status.trialDaysRemaining} day
-              {status.trialDaysRemaining !== 1 ? 's' : ''} remaining
-            </Text>
-          </View>
+            ⏳ Trial: {status.trialDaysRemaining} day
+            {status.trialDaysRemaining !== 1 ? 's' : ''} left — Tap to upgrade
+          </Text>
         )}
         <AppNavigator />
       </NavigationContainer>
@@ -125,16 +153,15 @@ const styles = StyleSheet.create({
   },
   trialBanner: {
     backgroundColor: 'rgba(37, 99, 235, 0.3)',
-    paddingVertical: 4,
-    alignItems: 'center',
-  },
-  trialBannerUrgent: {
-    backgroundColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  trialText: {
+    paddingVertical: 6,
+    textAlign: 'center',
     color: '#93c5fd',
     fontSize: 12,
     fontWeight: '600',
+  },
+  trialBannerUrgent: {
+    backgroundColor: 'rgba(245, 158, 11, 0.3)',
+    color: '#fcd34d',
   },
 });
 
