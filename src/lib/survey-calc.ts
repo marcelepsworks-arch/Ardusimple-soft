@@ -148,3 +148,156 @@ export function downloadFile(content: string, filename: string, mime: string) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
+
+// ─── Local metric coordinates (ENU) ──────────────────────────────────────────
+
+function toLocalMetric(points: SurveyPoint[]): Array<{ e: number; n: number; u: number; pt: SurveyPoint }> {
+  if (points.length === 0) return [];
+  const origin = points[0];
+  const mPerDegLat = (Math.PI * R) / 180;
+  const mPerDegLon = mPerDegLat * Math.cos((origin.latitude * Math.PI) / 180);
+  return points.map((p) => ({
+    e: (p.longitude - origin.longitude) * mPerDegLon,
+    n: (p.latitude  - origin.latitude)  * mPerDegLat,
+    u: p.altitude,
+    pt: p,
+  }));
+}
+
+// ─── DXF ─────────────────────────────────────────────────────────────────────
+// AutoCAD / Civil 3D / BricsCAD / QGIS
+// Coordinates: local ENU metres (origin = first point). Absolute altitude on Z.
+// Layers: one per point code (or "SURVEY" if no code).
+
+export function exportDXF(session: SurveySession): string {
+  const coords = toLocalMetric(session.points);
+  const origin = session.points[0];
+  const codes = [...new Set(session.points.map((p) => p.code || "SURVEY"))];
+
+  const layerDefs = codes.map((c) => `  0\nLAYER\n  2\n${c}\n 70\n0\n 62\n7\n  6\nCONTINUOUS`).join("\n");
+
+  const entities = coords.map(({ e, n, u, pt }) => {
+    const layer = pt.code || "SURVEY";
+    return [
+      `  0\nPOINT`,
+      `  8\n${layer}`,
+      ` 10\n${e.toFixed(4)}`,
+      ` 20\n${n.toFixed(4)}`,
+      ` 30\n${u.toFixed(4)}`,
+      // TEXT label
+      `  0\nTEXT`,
+      `  8\n${layer}_LABELS`,
+      ` 10\n${e.toFixed(4)}`,
+      ` 20\n${n.toFixed(4)}`,
+      ` 30\n${u.toFixed(4)}`,
+      ` 40\n0.5`,
+      `  1\n${pt.name}${pt.code ? ` (${pt.code})` : ""}`,
+    ].join("\n");
+  }).join("\n");
+
+  return [
+    `  0\nSECTION\n  2\nHEADER`,
+    `  9\n$ACADVER\n  1\nAC1015`,
+    `  9\n$INSUNITS\n 70\n6`, // 6 = metres
+    `  0\nENDSEC`,
+    `  0\nSECTION\n  2\nTABLES`,
+    `  0\nTABLE\n  2\nLAYER\n 70\n${codes.length * 2}`,
+    layerDefs,
+    `  0\nENDTAB\n  0\nENDSEC`,
+    `  0\nSECTION\n  2\nENTITIES`,
+    entities,
+    `  0\nENDSEC\n  0\nEOF`,
+    // Metadata comment block at top not valid in DXF, use filename convention
+  ].join("\n") +
+  // Append origin info as a comment-like entity (non-breaking)
+  `\n; Origin: ${origin?.latitude.toFixed(8)}, ${origin?.longitude.toFixed(8)}\n`;
+}
+
+// ─── GPX ─────────────────────────────────────────────────────────────────────
+// GPS Exchange Format — Garmin, Google Maps, Strava, OsmAnd, Locus
+
+export function exportGPX(session: SurveySession): string {
+  const wpts = session.points.map((p) => `  <wpt lat="${p.latitude.toFixed(8)}" lon="${p.longitude.toFixed(8)}">
+    <ele>${p.altitude.toFixed(4)}</ele>
+    <time>${p.timestamp}</time>
+    <name>${p.name}</name>
+    <cmt>${p.note || ""} | Fix: ${fixTypeLabel(p.fix_quality)} | HDOP: ${p.hdop.toFixed(2)}</cmt>
+    <desc>${p.code || ""}</desc>
+    <sym>Flag</sym>
+  </wpt>`).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GNSS RTK Desktop"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${session.name}</name>
+    <time>${session.createdAt}</time>
+  </metadata>
+${wpts}
+</gpx>`;
+}
+
+// ─── PNEZD CSV ───────────────────────────────────────────────────────────────
+// Point, Northing, Easting, Elevation, Description
+// Used by: Carlson Survey, SurvCE/SurvPC, Eagle Point, Softdesk, IntelliCAD
+
+export function exportPNEZD(session: SurveySession): string {
+  return session.points.map((p) =>
+    [
+      p.name,
+      p.latitude.toFixed(8),   // Northing = latitude
+      p.longitude.toFixed(8),  // Easting  = longitude
+      p.altitude.toFixed(4),
+      p.code || p.note || "",
+    ].join(",")
+  ).join("\n");
+}
+
+// ─── LandXML ─────────────────────────────────────────────────────────────────
+// Civil engineering standard — Autodesk Civil 3D, Trimble Business Center,
+// Leica Infinity, Bentley InRoads, MAGNET Office
+
+export function exportLandXML(session: SurveySession): string {
+  const now = new Date().toISOString();
+  const cgpoints = session.points.map((p, i) =>
+    `      <CgPoint name="${p.name}" desc="${p.code || ""}" oID="${i + 1}">` +
+    `${p.latitude.toFixed(8)} ${p.longitude.toFixed(8)} ${p.altitude.toFixed(4)}` +
+    `</CgPoint>`
+  ).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<LandXML version="1.2" date="${now.slice(0, 10)}" time="${now.slice(11, 19)}"
+  xmlns="http://www.landxml.org/schema/LandXML-1.2"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd">
+  <Units>
+    <Metric linearUnit="meter" areaUnit="squareMeter" volumeUnit="cubicMeter" angularUnit="decimal dd.mm.ss" directionUnit="decimal dd.mm.ss"/>
+  </Units>
+  <Project name="${session.name}"/>
+  <Application name="GNSS RTK Desktop" version="1.0"/>
+  <CgPoints name="${session.name}">
+${cgpoints}
+  </CgPoints>
+</LandXML>`;
+}
+
+// ─── XYZ (ASCII point cloud) ──────────────────────────────────────────────────
+// CloudCompare, MeshLab, Leica Cyclone, FARO Scene
+// Format: X Y Z (local metric ENU, space-separated)
+// Optional colour column (R G B 0–255)
+
+export function exportXYZ(session: SurveySession, includeColor = true): string {
+  const coords = toLocalMetric(session.points);
+  return coords.map(({ e, n, u, pt }) => {
+    const base = `${e.toFixed(4)} ${n.toFixed(4)} ${u.toFixed(4)}`;
+    if (!includeColor) return base;
+    // RGB from fix quality colour
+    const hex = fixTypeColor(pt.fix_quality).replace("#", "");
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `${base} ${r} ${g} ${b}`;
+  }).join("\n");
+}

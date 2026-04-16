@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   MapPin, Loader2, Trash2, Download, X, ChevronDown, ChevronUp,
   AlertTriangle, Plus, FolderOpen, Pencil, Check, FolderX,
-  Crosshair, BarChart2, FileDown, Navigation2,
+  Crosshair, BarChart2, FileDown, Navigation2, Mountain,
+  History, Search, Clock,
 } from "lucide-react";
+import { View3DPanel } from "./View3D";
 import { useDeviceStore } from "../../store/useDeviceStore";
 import {
   useSurveyStore, SurveyPoint, SurveySession,
@@ -13,7 +15,8 @@ import { fixTypeLabel, fixTypeColor, formatCoord } from "../../lib/formats";
 import {
   haversineDistance, distance3D, azimuth, formatAzimuth,
   polygonArea, polygonPerimeter, formatArea, formatDistance,
-  exportGeoJSON, exportKML, exportCSV, downloadFile,
+  exportGeoJSON, exportKML, exportCSV, exportGPX,
+  exportDXF, exportPNEZD, exportLandXML, exportXYZ, downloadFile,
 } from "../../lib/survey-calc";
 
 const SAMPLE_OPTIONS = [1, 5, 10, 20, 30, 60];
@@ -26,24 +29,63 @@ const MIN_QUALITY = [
 const AUTO_DISTANCES = [1, 2, 5, 10, 25, 50];
 type Tab = "collect" | "analysis" | "export";
 
-// ─── Session bar ──────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function dateLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const week = new Date(today.getTime() - 6 * 86400000);
+  const sd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (sd.getTime() === today.getTime())     return "Today";
+  if (sd.getTime() === yesterday.getTime()) return "Yesterday";
+  if (sd >= week) return d.toLocaleDateString(undefined, { weekday: "long" });
+  if (d.getFullYear() === now.getFullYear())
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function timeStr(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+// ─── Session history browser ──────────────────────────────────────────────────
 function SessionBar() {
   const sessions = useSurveyStore((s) => s.sessions) ?? [];
   const activeSessionId = useSurveyStore((s) => s.activeSessionId);
   const { newSession, renameSession, setActiveSession, deleteSession } = useSurveyStore();
   const active = sessions.find((s) => s.id === activeSessionId);
 
-  const [showPicker, setShowPicker] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [showNew, setShowNew]         = useState(false);
+  const [newName, setNewName]         = useState("");
+  const [search, setSearch]           = useState("");
+  const [editingId, setEditingId]     = useState<string | null>(null);
+  const [editName, setEditName]       = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
+  // Filter + group sessions by date label
+  const grouped = useMemo(() => {
+    const filtered = [...sessions]
+      .filter((s) => s.name.toLowerCase().includes(search.toLowerCase()) ||
+                     new Date(s.createdAt).toLocaleDateString().includes(search))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const map = new Map<string, typeof sessions>();
+    filtered.forEach((s) => {
+      const label = dateLabel(s.createdAt);
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(s);
+    });
+    return map;
+  }, [sessions, search]);
+
   function handleNew() {
-    setNewName(`Session ${new Date().toLocaleDateString()}`);
+    const d = new Date();
+    setNewName(`${d.toLocaleDateString()} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`);
     setShowNew(true);
-    setShowPicker(false);
+    setShowHistory(false);
   }
 
   function confirmNew() {
@@ -54,22 +96,40 @@ function SessionBar() {
 
   return (
     <div className="border-b border-gray-800 bg-gray-950">
+
+      {/* Active session row */}
       <div className="flex items-center gap-2 px-3 py-2">
         <FolderOpen size={13} className="text-blue-400 flex-shrink-0" />
         <button
-          onClick={() => { setShowPicker((v) => !v); setShowNew(false); }}
-          className="flex-1 text-left text-xs font-semibold text-gray-100 truncate hover:text-white"
+          onClick={() => { setShowHistory((v) => !v); setShowNew(false); }}
+          className="flex-1 text-left min-w-0"
         >
-          {active ? active.name : <span className="text-gray-500 italic">No session — create one</span>}
+          {active ? (
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-gray-100 truncate leading-tight">{active.name}</span>
+              <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                <Clock size={9} />
+                {dateLabel(active.createdAt)} · {timeStr(active.createdAt)} · {active.points.length} pts
+              </span>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-500 italic">No session — create one</span>
+          )}
         </button>
-        <button onClick={handleNew} className="text-xs text-green-400 hover:text-green-300 flex items-center gap-1 flex-shrink-0">
+        <button onClick={handleNew} className="text-xs text-green-400 hover:text-green-300 flex items-center gap-1 flex-shrink-0 ml-1">
           <Plus size={13} /> New
         </button>
-        <button onClick={() => { setShowPicker((v) => !v); setShowNew(false); }} className="text-gray-500 hover:text-gray-300 flex-shrink-0">
-          {showPicker ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        <button
+          onClick={() => { setShowHistory((v) => !v); setShowNew(false); }}
+          className="text-gray-500 hover:text-gray-300 flex-shrink-0 flex items-center gap-0.5"
+          title="Session history"
+        >
+          <History size={12} />
+          {showHistory ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         </button>
       </div>
 
+      {/* New session input */}
       {showNew && (
         <div className="flex items-center gap-2 px-3 pb-2">
           <input
@@ -84,37 +144,124 @@ function SessionBar() {
         </div>
       )}
 
-      {showPicker && sessions.length > 0 && (
-        <div className="border-t border-gray-800 max-h-44 overflow-y-auto">
-          {[...sessions].reverse().map((s) => (
-            <div key={s.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${s.id === activeSessionId ? "bg-blue-900/30 text-blue-300" : "hover:bg-gray-800 text-gray-300"}`}>
-              {editingId === s.id ? (
-                <>
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { renameSession(s.id, editName); setEditingId(null); } if (e.key === "Escape") setEditingId(null); }}
-                    className="flex-1 bg-gray-900 border border-blue-600 rounded px-1.5 py-0.5 text-xs" autoFocus />
-                  <button onClick={() => { renameSession(s.id, editName); setEditingId(null); }} className="text-green-400"><Check size={12} /></button>
-                  <button onClick={() => setEditingId(null)} className="text-gray-500"><X size={12} /></button>
-                </>
-              ) : (
-                <>
-                  <button className="flex-1 text-left truncate" onClick={() => { setActiveSession(s.id); setShowPicker(false); }}>
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-gray-500 ml-1.5">({s.points.length} pts · {new Date(s.createdAt).toLocaleDateString()})</span>
-                  </button>
-                  <button onClick={() => { setEditingId(s.id); setEditName(s.name); }} className="text-gray-600 hover:text-gray-300"><Pencil size={11} /></button>
-                  {confirmDelete === s.id ? (
-                    <span className="flex items-center gap-1">
-                      <button onClick={() => { deleteSession(s.id); setConfirmDelete(null); }} className="text-red-400 text-[10px]">Del</button>
-                      <button onClick={() => setConfirmDelete(null)} className="text-gray-500 text-[10px]">Cancel</button>
-                    </span>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(s.id)} className="text-gray-600 hover:text-red-400"><FolderX size={11} /></button>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
+      {/* History panel */}
+      {showHistory && (
+        <div className="border-t border-gray-800 flex flex-col">
+
+          {/* Search */}
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/60">
+            <Search size={11} className="text-gray-500 flex-shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or date…"
+              className="flex-1 bg-transparent text-xs text-gray-200 placeholder-gray-600 outline-none"
+              autoFocus
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="text-gray-600 hover:text-gray-300">
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          {/* Summary */}
+          <div className="px-3 py-1 flex items-center justify-between border-b border-gray-800/40">
+            <span className="text-[10px] text-gray-500">
+              {sessions.length} session{sessions.length !== 1 ? "s" : ""} · {sessions.reduce((a, s) => a + s.points.length, 0)} pts total
+            </span>
+          </div>
+
+          {/* Grouped list */}
+          <div className="max-h-64 overflow-y-auto">
+            {grouped.size === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-4">No sessions found</p>
+            ) : (
+              Array.from(grouped.entries()).map(([label, group]) => (
+                <div key={label}>
+                  {/* Date group header */}
+                  <div className="px-3 py-1 bg-gray-900/80 sticky top-0 z-10">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
+                  </div>
+
+                  {group.map((s) => (
+                    <div key={s.id}
+                      className={`flex items-center gap-2 px-3 py-2 border-b border-gray-800/30 transition-colors ${
+                        s.id === activeSessionId
+                          ? "bg-blue-900/25 border-l-2 border-l-blue-500"
+                          : "hover:bg-gray-800/50"
+                      }`}
+                    >
+                      {editingId === s.id ? (
+                        <>
+                          <input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") { renameSession(s.id, editName); setEditingId(null); }
+                              if (e.key === "Escape") setEditingId(null);
+                            }}
+                            className="flex-1 bg-gray-900 border border-blue-600 rounded px-1.5 py-0.5 text-xs"
+                            autoFocus
+                          />
+                          <button onClick={() => { renameSession(s.id, editName); setEditingId(null); }} className="text-green-400"><Check size={12} /></button>
+                          <button onClick={() => setEditingId(null)} className="text-gray-500"><X size={12} /></button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="flex-1 text-left min-w-0"
+                            onClick={() => { setActiveSession(s.id); setShowHistory(false); }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {s.id === activeSessionId && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+                              )}
+                              <span className="text-xs font-medium text-gray-200 truncate">{s.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 font-mono">
+                              <span className="flex items-center gap-0.5">
+                                <Clock size={8} /> {timeStr(s.createdAt)}
+                              </span>
+                              <span>·</span>
+                              <span>{s.points.length} pts</span>
+                              {s.points.length > 0 && (
+                                <>
+                                  <span>·</span>
+                                  <span>{new Date(s.points[s.points.length - 1].timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} last pt</span>
+                                </>
+                              )}
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={() => { setEditingId(s.id); setEditName(s.name); }}
+                            className="text-gray-600 hover:text-gray-300 flex-shrink-0"
+                          >
+                            <Pencil size={11} />
+                          </button>
+
+                          {confirmDelete === s.id ? (
+                            <span className="flex items-center gap-1 flex-shrink-0">
+                              <button onClick={() => { deleteSession(s.id); setConfirmDelete(null); }} className="text-red-400 hover:text-red-300 text-[10px]">Del</button>
+                              <button onClick={() => setConfirmDelete(null)} className="text-gray-500 text-[10px]">No</button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDelete(s.id)}
+                              className="text-gray-700 hover:text-red-400 flex-shrink-0"
+                            >
+                              <FolderX size={11} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -482,6 +629,16 @@ function AnalysisTab() {
           </div>
         )}
       </div>
+
+      <div className="border-t border-gray-800" />
+
+      {/* 3D / Elevation Profile */}
+      <div className="space-y-2">
+        <h3 className="text-[10px] text-gray-300 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+          <Mountain size={11} /> 3D Visualization
+        </h3>
+        <View3DPanel points={points} />
+      </div>
     </div>
   );
 }
@@ -496,44 +653,87 @@ function ExportTab() {
 
   const slug = session.name.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
   const date = new Date().toISOString().slice(0, 10);
+  const filename = (ext: string) => `${slug}_${date}.${ext}`;
 
-  function doExport(type: "csv" | "geojson" | "kml") {
-    if (!session) return;
-    if (type === "csv") downloadFile(exportCSV(session), `${slug}_${date}.csv`, "text/csv");
-    if (type === "geojson") downloadFile(exportGeoJSON(session), `${slug}_${date}.geojson`, "application/geo+json");
-    if (type === "kml") downloadFile(exportKML(session), `${slug}_${date}.kml`, "application/vnd.google-earth.kml+xml");
-  }
+  const formats: { key: string; label: string; ext: string; desc: string; color: string; mime: string; fn: () => string }[] = [
+    {
+      key: "csv", label: "CSV", ext: "csv",
+      desc: "Excel · QGIS · full metadata",
+      color: "text-green-400", mime: "text/csv",
+      fn: () => exportCSV(session),
+    },
+    {
+      key: "pnezd", label: "PNEZD CSV", ext: "csv",
+      desc: "Carlson · SurvCE · SurvPC · Eagle Point",
+      color: "text-emerald-400", mime: "text/csv",
+      fn: () => exportPNEZD(session),
+    },
+    {
+      key: "dxf", label: "DXF", ext: "dxf",
+      desc: "AutoCAD · Civil 3D · BricsCAD · QGIS",
+      color: "text-orange-400", mime: "application/dxf",
+      fn: () => exportDXF(session),
+    },
+    {
+      key: "geojson", label: "GeoJSON", ext: "geojson",
+      desc: "QGIS · Mapbox · web GIS",
+      color: "text-blue-400", mime: "application/geo+json",
+      fn: () => exportGeoJSON(session),
+    },
+    {
+      key: "kml", label: "KML", ext: "kml",
+      desc: "Google Earth · Google Maps · OsmAnd",
+      color: "text-amber-400", mime: "application/vnd.google-earth.kml+xml",
+      fn: () => exportKML(session),
+    },
+    {
+      key: "gpx", label: "GPX", ext: "gpx",
+      desc: "Garmin · Strava · Locus · komoot",
+      color: "text-cyan-400", mime: "application/gpx+xml",
+      fn: () => exportGPX(session),
+    },
+    {
+      key: "landxml", label: "LandXML", ext: "xml",
+      desc: "Trimble · Leica · Autodesk Civil 3D",
+      color: "text-purple-400", mime: "application/xml",
+      fn: () => exportLandXML(session),
+    },
+    {
+      key: "xyz", label: "XYZ", ext: "xyz",
+      desc: "CloudCompare · MeshLab · point cloud",
+      color: "text-pink-400", mime: "text/plain",
+      fn: () => exportXYZ(session),
+    },
+  ];
 
   return (
     <div className="px-3 py-3 space-y-3">
-      <h3 className="text-[10px] text-gray-300 font-semibold uppercase tracking-wider flex items-center gap-1.5">
-        <FileDown size={11} /> Export Session
-      </h3>
-      <p className="text-[10px] text-gray-500">
-        <span className="text-gray-300 font-semibold">{session.name}</span> · {session.points.length} points
-      </p>
+      <div className="flex items-center justify-between">
+        <h3 className="text-[10px] text-gray-300 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+          <FileDown size={11} /> Export
+        </h3>
+        <span className="text-[10px] text-gray-500">
+          {session.points.length} pts · <span className="text-gray-300">{session.name}</span>
+        </span>
+      </div>
 
       {session.points.length === 0 ? (
         <p className="text-xs text-gray-500 text-center py-4">No points to export</p>
       ) : (
-        <div className="space-y-2">
-          {[
-            { type: "csv" as const, label: "CSV", desc: "Spreadsheet / Excel / QGIS", color: "text-green-400" },
-            { type: "geojson" as const, label: "GeoJSON", desc: "QGIS, Mapbox, web GIS", color: "text-blue-400" },
-            { type: "kml" as const, label: "KML", desc: "Google Earth, Google Maps", color: "text-amber-400" },
-          ].map(({ type, label, desc, color }) => (
-            <button key={type} onClick={() => doExport(type)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 hover:border-gray-600 transition-colors text-left">
-              <Download size={15} className={color} />
-              <div>
-                <div className={`text-xs font-bold ${color}`}>{label}</div>
-                <div className="text-[10px] text-gray-400">{desc}</div>
+        <div className="space-y-1.5">
+          {formats.map(({ key, label, ext, desc, color, mime, fn }) => (
+            <button key={key}
+              onClick={() => downloadFile(fn(), filename(ext), mime)}
+              className="w-full flex items-center gap-3 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded border border-gray-700/60 hover:border-gray-600 transition-colors text-left">
+              <Download size={13} className={color} />
+              <div className="flex-1 min-w-0">
+                <span className={`text-xs font-bold ${color}`}>{label}</span>
+                <span className="text-[10px] text-gray-500 ml-2">{desc}</span>
               </div>
             </button>
           ))}
 
-          <div className="border-t border-gray-800 pt-2">
-            <p className="text-[10px] text-gray-500 mb-2">Export all sessions</p>
+          <div className="border-t border-gray-800 pt-2 mt-1">
             <button onClick={() => {
               const all = sessions.map((s) => ({
                 type: "FeatureCollection" as const,
@@ -541,11 +741,13 @@ function ExportTab() {
                 features: JSON.parse(exportGeoJSON(s)).features,
               }));
               downloadFile(JSON.stringify(all, null, 2), `all_sessions_${date}.geojson`, "application/geo+json");
-            }} className="w-full flex items-center gap-3 px-3 py-2 bg-gray-800/60 hover:bg-gray-700 rounded border border-gray-700 text-left">
-              <Download size={14} className="text-blue-300" />
+            }} className="w-full flex items-center gap-3 px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded border border-gray-700/40 text-left">
+              <Download size={13} className="text-blue-300" />
               <div>
-                <div className="text-xs font-bold text-blue-300">All Sessions GeoJSON</div>
-                <div className="text-[10px] text-gray-400">{sessions.length} sessions · {sessions.reduce((a, s) => a + s.points.length, 0)} total pts</div>
+                <span className="text-xs font-bold text-blue-300">All Sessions — GeoJSON</span>
+                <span className="text-[10px] text-gray-500 ml-2">
+                  {sessions.length} sessions · {sessions.reduce((a, s) => a + s.points.length, 0)} pts total
+                </span>
               </div>
             </button>
           </div>

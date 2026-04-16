@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist /fi \"imagename eq gnss-rtk-desktop.exe\")",
+      "Bash(tasklist /fi \"imagename eq node.exe\")",
+      "Bash(tasklist)",
+      "Bash(rtk ls *)"
+    ]
+  }
+}

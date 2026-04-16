@@ -1,6 +1,6 @@
 [package]
 name = "gnss-rtk-desktop"
-version = "0.1.0"
+version = "1.1.0"
 description = "GNSS RTK Desktop Application"
 authors = ["you"]
 license = "MIT"
@@ -28,3 +28,5 @@ base64 = "0.22"
 tokio-util = { version = "0.7", features = ["io"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 hex = "0.4"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
