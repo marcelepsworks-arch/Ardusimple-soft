@@ -376,8 +376,8 @@ function CollectTab() {
   }
 
   const isConnected = connectionState === "connected";
-  const qualityOk = fix ? (fix.fix_quality >= minQuality || minQuality === 1) : false;
-  const canCollect = isConnected && !!fix && qualityOk && !collecting.active && !autoActive;
+  const qualityOk = fix ? fix.fix_quality >= minQuality : false;
+  const canCollect = isConnected && (!fix || qualityOk) && !collecting.active && !autoActive;
 
   return (
     <div className="flex flex-col gap-0">

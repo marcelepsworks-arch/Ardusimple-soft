@@ -1,1 +1,0 @@
-import{t as e}from"./index-C2gWvC7V.js";async function t(t={}){return typeof t==`object`&&Object.freeze(t),await e(`plugin:dialog|save`,{options:t})}export{t as save};
