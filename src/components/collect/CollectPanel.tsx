@@ -287,7 +287,7 @@ function CollectTab() {
   const [code, setCode] = useState("");
   const [note, setNote] = useState("");
   const [samples, setSamples] = useState(1);
-  const [minQuality, setMinQuality] = useState(4);
+  const [minQuality, setMinQuality] = useState(1);
   const [progress, setProgress] = useState(0);
   const [showList, setShowList] = useState(true);
   const [confirmClear, setConfirmClear] = useState(false);
