@@ -20,12 +20,15 @@ export async function startFixListener() {
 }
 
 export async function startConnectionListener() {
-  return listen<{ state: "connected" | "disconnected" | "error" }>(
+  return listen<{ state: "connected" | "disconnected" | "error"; reason?: string }>(
     "connection_state",
     (event) => {
       useDeviceStore.getState().setConnectionState(event.payload.state);
       if (event.payload.state === "disconnected") {
         useDeviceStore.getState().setConnectedPort(null);
+        if (event.payload.reason) {
+          useDeviceStore.getState().setLastError(event.payload.reason);
+        }
       }
     }
   );

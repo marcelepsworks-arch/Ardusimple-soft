@@ -107,14 +107,18 @@ pub async fn connect_serial(
         .open()
         .map_err(|e| format!("Failed to open {}: {}", port, e))?;
 
-    // Clone the port for writing (RTCM relay)
-    let writer = serial
-        .try_clone()
-        .map_err(|e| format!("Failed to clone serial port: {}", e))?;
-
-    {
-        let mut w = state.serial_writer.lock().unwrap();
-        *w = Some(Box::new(writer));
+    // Attempt to clone the port for writing (RTCM relay).
+    // Some USB-serial drivers on Windows (CP210x, CH340) don't support cloning —
+    // treat failure as non-fatal: NTRIP correction relay is disabled but GNSS
+    // reading still works normally.
+    match serial.try_clone() {
+        Ok(writer) => {
+            let mut w = state.serial_writer.lock().unwrap();
+            *w = Some(Box::new(writer));
+        }
+        Err(e) => {
+            log::warn!("Serial port clone failed (NTRIP relay disabled): {}", e);
+        }
     }
 
     state.is_connected.store(true, Ordering::SeqCst);
@@ -132,43 +136,54 @@ pub async fn connect_serial(
     std::thread::spawn(move || {
         let mut reader = std::io::BufReader::new(serial);
         let mut fix = LiveFix::default();
-        let mut line = String::new();
+        let mut buf: Vec<u8> = Vec::with_capacity(256);
+        let mut disconnect_reason: Option<String> = None;
 
         loop {
             if stop.load(Ordering::SeqCst) {
                 break;
             }
 
-            line.clear();
-            match reader.read_line(&mut line) {
-                Ok(0) => break,
+            buf.clear();
+            match reader.read_until(b'\n', &mut buf) {
+                Ok(0) => {
+                    disconnect_reason = Some("Port closed (EOF)".to_string());
+                    break;
+                }
                 Ok(_) => {
-                    let trimmed = line.trim();
-                    if trimmed.starts_with('$') {
-                        if nmea::parse_sentence(trimmed, &mut fix) {
-                            // Update shared live fix (for NTRIP GGA generation)
-                            if let Ok(mut shared) = live_fix_shared.lock() {
-                                *shared = fix.clone();
+                    // Skip binary (non-UTF-8) frames — these are RTCM3 or other binary data
+                    if let Ok(line) = std::str::from_utf8(&buf) {
+                        let trimmed = line.trim();
+                        if trimmed.starts_with('$') {
+                            if nmea::parse_sentence(trimmed, &mut fix) {
+                                if let Ok(mut shared) = live_fix_shared.lock() {
+                                    *shared = fix.clone();
+                                }
+                                let _ = app.emit("fix_update", &fix);
                             }
-                            let _ = app.emit("fix_update", &fix);
                         }
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
                     continue;
                 }
-                Err(_) => break,
+                Err(e) => {
+                    disconnect_reason = Some(format!("Read error: {}", e));
+                    break;
+                }
             }
         }
 
         connected.store(false, Ordering::SeqCst);
-        // Clear writer
         if let Ok(mut w) = serial_writer.lock() {
             *w = None;
         }
         let _ = app.emit(
             "connection_state",
-            serde_json::json!({"state": "disconnected"}),
+            serde_json::json!({
+                "state": "disconnected",
+                "reason": disconnect_reason
+            }),
         );
     });
 

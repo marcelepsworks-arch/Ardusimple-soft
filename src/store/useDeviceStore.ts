@@ -25,10 +25,12 @@ interface DeviceState {
   connectedPort: string | null;
   connectionState: "disconnected" | "connected" | "error";
   liveFix: LiveFix | null;
+  lastError: string | null;
   setPorts: (ports: PortInfo[]) => void;
   setConnectedPort: (port: string | null) => void;
   setConnectionState: (state: "disconnected" | "connected" | "error") => void;
   setLiveFix: (fix: LiveFix) => void;
+  setLastError: (err: string | null) => void;
 }
 
 export const useDeviceStore = create<DeviceState>((set) => ({
@@ -36,8 +38,10 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   connectedPort: null,
   connectionState: "disconnected",
   liveFix: null,
+  lastError: null,
   setPorts: (ports) => set({ ports }),
   setConnectedPort: (port) => set({ connectedPort: port }),
   setConnectionState: (state) => set({ connectionState: state }),
   setLiveFix: (fix) => set({ liveFix: fix }),
+  setLastError: (err) => set({ lastError: err }),
 }));

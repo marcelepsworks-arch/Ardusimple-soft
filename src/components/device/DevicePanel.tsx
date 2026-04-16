@@ -11,9 +11,12 @@ export function DevicePanel() {
   const connectedPort = useDeviceStore((s) => s.connectedPort);
   const setConnectedPort = useDeviceStore((s) => s.setConnectedPort);
   const connectionState = useDeviceStore((s) => s.connectionState);
+  const lastError = useDeviceStore((s) => s.lastError);
+  const setLastError = useDeviceStore((s) => s.setLastError);
   const [selectedPort, setSelectedPort] = useState("");
   const [baudRate, setBaudRate] = useState(115200);
   const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function scanPorts() {
     setScanning(true);
@@ -35,11 +38,13 @@ export function DevicePanel() {
 
   async function connect() {
     if (!selectedPort) return;
+    setError(null);
+    setLastError(null);
     try {
       await invoke("connect_serial", { port: selectedPort, baud: baudRate });
       setConnectedPort(selectedPort);
     } catch (e) {
-      console.error("Connect failed:", e);
+      setError(String(e));
     }
   }
 
@@ -104,6 +109,13 @@ export function DevicePanel() {
           ))}
         </select>
       </div>
+
+      {/* Error message (invoke error or disconnect reason) */}
+      {(error || lastError) && (
+        <div className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded px-2 py-1.5">
+          {error || lastError}
+        </div>
+      )}
 
       {/* Connect / Disconnect */}
       <button

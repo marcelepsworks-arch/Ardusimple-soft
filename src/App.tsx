@@ -3,6 +3,7 @@ import { MapView } from "./components/map/MapView";
 import { StatusBar } from "./components/device/StatusBar";
 import { DevicePanel } from "./components/device/DevicePanel";
 import { NtripPanel } from "./components/ntrip/NtripPanel";
+import { CollectPanel } from "./components/collect/CollectPanel";
 import { LicenseGate } from "./components/shared/LicenseGate";
 import { startFixListener, startConnectionListener } from "./lib/nmea-listener";
 import {
@@ -13,7 +14,7 @@ import {
   Settings,
 } from "lucide-react";
 
-type Panel = "map" | "device" | "ntrip" | "settings" | null;
+type Panel = "map" | "device" | "ntrip" | "survey" | "settings" | null;
 
 export default function App() {
   const [activePanel, setActivePanel] = useState<Panel>("device");
@@ -32,6 +33,7 @@ export default function App() {
     { id: "map", icon: <Map size={20} />, label: "Map" },
     { id: "device", icon: <Satellite size={20} />, label: "Device" },
     { id: "ntrip", icon: <Radio size={20} />, label: "NTRIP" },
+    { id: "survey", icon: <Crosshair size={20} />, label: "Survey" },
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
   ];
 
@@ -64,6 +66,7 @@ export default function App() {
         <div className="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
           {activePanel === "device" && <DevicePanel />}
           {activePanel === "ntrip" && <NtripPanel />}
+          {activePanel === "survey" && <CollectPanel />}
           {activePanel === "settings" && (
             <div className="p-4 text-gray-400">Settings — coming soon</div>
           )}
