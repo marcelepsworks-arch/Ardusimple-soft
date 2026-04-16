@@ -1,4 +1,5 @@
 import { SurveyPoint } from "../store/useSurveyStore";
+import { fixTypeColor } from "./formats";
 
 const R = 6378137; // WGS84 equatorial radius in metres
 
@@ -141,8 +142,26 @@ export function exportCSV(session: SurveySession): string {
   return header + rows;
 }
 
-export function downloadFile(content: string, filename: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
+/** Save a file — uses native OS save dialog in Tauri, browser blob fallback in web */
+export async function downloadFile(content: string, filename: string, _mime: string) {
+  // Tauri environment: use plugin-dialog save + plugin-fs write
+  if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__) {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      const ext = filename.split(".").pop() ?? "";
+      const filters: { name: string; extensions: string[] }[] = ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : [];
+      const path = await save({ defaultPath: filename, filters });
+      if (path) {
+        await writeTextFile(path, content);
+      }
+      return;
+    } catch (e) {
+      console.warn("Tauri save dialog failed, falling back to browser download:", e);
+    }
+  }
+  // Browser / web fallback
+  const blob = new Blob([content], { type: _mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
